@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
-  List, ListItem, ListItemText, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Box, Fab
+  List, ListItem, ListItemText, Button, Dialog, DialogTitle, DialogContent, DialogActions, TextField, Typography, Box, Fab, Switch
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -30,6 +30,7 @@ const OrdiniTableMobile: React.FC = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [ordineToDelete, setOrdineToDelete] = useState<Ordine | null>(null);
   const [clienti, setClienti] = useState<{ nome: string }[]>([]);
+  const [ordinaDecrescente, setOrdinaDecrescente] = useState(true);
 
   useEffect(() => {
     const fetchOrdini = async () => {
@@ -65,6 +66,10 @@ const OrdiniTableMobile: React.FC = () => {
       }
       return acc;
     }, {} as { [cliente: string]: Ordine })
+  ).sort((a, b) =>
+    ordinaDecrescente
+      ? new Date(b.data).getTime() - new Date(a.data).getTime()
+      : new Date(a.data).getTime() - new Date(b.data).getTime()
   );
 
   const handleAdd = async () => {
@@ -127,6 +132,16 @@ const OrdiniTableMobile: React.FC = () => {
       }}
     >
       <Typography variant="h5" sx={{ p: 2 }}>Ordini</Typography>
+      <Box display="flex" alignItems="center" sx={{ px: 2, pt: 1 }}>
+        <Typography variant="body2" sx={{ mr: 1 }}>
+          {ordinaDecrescente ? "Più recenti prima" : "Meno recenti prima"}
+        </Typography>
+        <Switch
+          checked={ordinaDecrescente}
+          onChange={() => setOrdinaDecrescente(v => !v)}
+          color="primary"
+        />
+      </Box>
       <Box
         sx={{
           height: 'calc(100vh - 120px)',

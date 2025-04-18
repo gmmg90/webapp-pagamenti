@@ -34,6 +34,7 @@ const ClientiTableMobile: React.FC = () => {
   const [importo, setImporto] = useState<string>(''); // invece di 0
   const [mostraSaldoZero, setMostraSaldoZero] = useState(false);
   const [searchCliente, setSearchCliente] = useState('');
+  const [ordinaDecrescente, setOrdinaDecrescente] = useState(true);
 
   // Acconto
   const [openAcconto, setOpenAcconto] = useState(false);
@@ -91,11 +92,17 @@ const ClientiTableMobile: React.FC = () => {
     setOpenAcconto(false);
   };
 
-  const clientiFiltrati = clienti.filter(c => {
-    const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
-    const saldo = c.importo - totaleAcconti;
-    return (mostraSaldoZero || saldo !== 0) && c.nome.toLowerCase().includes(searchCliente.toLowerCase());
-  });
+  const clientiFiltrati = clienti
+    .filter(c => {
+      const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
+      const saldo = c.importo - totaleAcconti;
+      return (mostraSaldoZero || saldo !== 0) && c.nome.toLowerCase().includes(searchCliente.toLowerCase());
+    })
+    .sort((a, b) =>
+      ordinaDecrescente
+        ? new Date(b.data).getTime() - new Date(a.data).getTime()
+        : new Date(a.data).getTime() - new Date(b.data).getTime()
+    );
 
   return (
     <Box
@@ -130,6 +137,16 @@ const ClientiTableMobile: React.FC = () => {
           }
           label="Mostra clienti con saldo zero"
         />
+        <Box display="flex" alignItems="center" sx={{ mt: 1, mb: 1 }}>
+          <Typography variant="body2" sx={{ mr: 1 }}>
+            {ordinaDecrescente ? "Più recenti prima" : "Meno recenti prima"}
+          </Typography>
+          <Switch
+            checked={ordinaDecrescente}
+            onChange={() => setOrdinaDecrescente(v => !v)}
+            color="primary"
+          />
+        </Box>
       </Box>
       <Box
         sx={{

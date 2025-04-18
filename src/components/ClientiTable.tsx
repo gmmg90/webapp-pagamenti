@@ -13,6 +13,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContentText from '@mui/material/DialogContentText';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
+import { Box, Typography } from '@mui/material';
 
 interface Acconto {
   importo: number;
@@ -41,6 +42,7 @@ const ClientiTable: React.FC = () => {
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
   const [mostraSaldoZero, setMostraSaldoZero] = useState(false);
+  const [ordinaDecrescente, setOrdinaDecrescente] = useState(true);
   const [] = useState(false);
 
   useEffect(() => {
@@ -60,12 +62,18 @@ const ClientiTable: React.FC = () => {
   }, []);
 
   const nomiClienti = Array.from(new Set(clienti.map(c => c.nome)));
-  const clientiFiltrati = clienti.filter(c => {
-    const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
-    const saldo = c.importo - totaleAcconti;
-    const matchNome = c.nome.toLowerCase().includes(searchCliente.toLowerCase());
-    return matchNome && (mostraSaldoZero || saldo !== 0);
-  });
+  const clientiFiltrati = clienti
+    .filter(c => {
+      const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
+      const saldo = c.importo - totaleAcconti;
+      const matchNome = c.nome.toLowerCase().includes(searchCliente.toLowerCase());
+      return matchNome && (mostraSaldoZero || saldo !== 0);
+    })
+    .sort((a, b) =>
+      ordinaDecrescente
+        ? new Date(b.data).getTime() - new Date(a.data).getTime()
+        : new Date(a.data).getTime() - new Date(b.data).getTime()
+    );
 
   // Calcolo totali
   const totaleImporti = clientiFiltrati.reduce((sum, c) => sum + (c.importo || 0), 0);
@@ -75,7 +83,7 @@ const ClientiTable: React.FC = () => {
   }, 0);
 
   const handleAdd = async () => {
-    const importoNum = parseFloat(importo || '0');
+    const importoNum = parseFloat(importo?.toString() || '0');
     if (!nome || !descrizione || importoNum <= 0) return;
     const nuovoCliente: Cliente = { data, nome, descrizione, importo: importoNum, acconti: [] };
     const docRef = await addDoc(collection(db, 'clienti'), nuovoCliente);
@@ -97,7 +105,7 @@ const ClientiTable: React.FC = () => {
 
   const handleUpdate = async () => {
     if (editIndex === null) return;
-    const importoNum = parseFloat(importo || '0');
+    const importoNum = parseFloat(importo?.toString() || '0');
     const cliente = clientiFiltrati[editIndex];
     const updatedCliente = { ...cliente, data, nome, descrizione, importo: importoNum };
     await updateDoc(doc(db, 'clienti', cliente.id!), updatedCliente);
@@ -155,6 +163,16 @@ const ClientiTable: React.FC = () => {
         }
         label="Mostra clienti con saldo zero"
       />
+      <Box display="flex" alignItems="center" sx={{ mb: 2 }}>
+        <Typography variant="body2" sx={{ mr: 1 }}>
+          {ordinaDecrescente ? "Più recenti prima" : "Meno recenti prima"}
+        </Typography>
+        <Switch
+          checked={ordinaDecrescente}
+          onChange={() => setOrdinaDecrescente(v => !v)}
+          color="primary"
+        />
+      </Box>
       <TableContainer
         component={Paper}
         sx={{

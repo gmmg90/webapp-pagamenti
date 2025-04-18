@@ -163,31 +163,86 @@ const ClientiTable: React.FC = () => {
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
+
+    // 1. Intestazione principale (centrata)
+    const companyName = 'Gelarredi Informatica srl';
     doc.setFontSize(18);
-    doc.text('Gelarredi Informatica srl', 14, 18);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const companyNameWidth = doc.getTextWidth(companyName);
+    const companyNameX = (pageWidth - companyNameWidth) / 2;
+    doc.text(companyName, companyNameX, 18);
+
+    // Titolo dinamico
     doc.setFontSize(12);
-    doc.text('Report Cliente', 14, 28);
+    doc.setFont('helvetica', 'normal'); // Assicura stile normale
+    let startX = 14; // Manteniamo startX per il titolo e il saldo che sono allineati a sinistra
+    if (clientiFiltrati.length > 0) {
+      const firstClientName = clientiFiltrati[0].nome;
+      const allSameClient = clientiFiltrati.every(c => c.nome === firstClientName);
+      if (allSameClient) {
+        // 2a. Scrivi etichetta titolo (normale)
+        const label = 'Report Cliente: ';
+        doc.text(label, startX, 28);
+        startX += doc.getTextWidth(label); // Calcola dove iniziare il nome
+
+        // 2b. Scrivi nome cliente (grassetto corsivo)
+        doc.setFont('helvetica', 'bolditalic');
+        doc.text(firstClientName, startX, 28);
+        doc.setFont('helvetica', 'normal'); // Reimposta normale
+        startX = 14; // Resetta startX per la riga del saldo
+      } else {
+        // Titolo generico (normale)
+        doc.text('Report Clienti', startX, 28);
+      }
+    } else {
+      // Titolo generico se non ci sono clienti filtrati (normale)
+      doc.text('Report Clienti', startX, 28);
+    }
+
+    // Calcolo totale saldo
+    const totaleSaldi = clientiFiltrati.reduce((sum, c) => {
+      const totaleAcconti = (c.acconti || []).reduce((a, b) => a + (b.importo || 0), 0);
+      return sum + (c.importo - totaleAcconti);
+    }, 0);
+
+    // Saldo Totale (allineato a sinistra)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal'); // Assicura stile normale
+    startX = 14; // Usa startX per allineare a sinistra
+    // 3a. Scrivi etichetta saldo (normale)
+    const saldoLabel = 'Differnza a Saldo: ';
+    doc.text(saldoLabel, startX, 34);
+    startX += doc.getTextWidth(saldoLabel); // Calcola dove iniziare il valore
+
+    // 3b. Scrivi valore saldo (grassetto corsivo)
+    doc.setFont('helvetica', 'bolditalic');
+    doc.text(`${totaleSaldi.toFixed(2)} €`, startX, 34);
+    doc.setFont('helvetica', 'normal'); // Reimposta normale prima della tabella
+
+    // Genera il body della tabella
+    const body = clientiFiltrati.map(c => {
+      const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
+      const saldo = c.importo - totaleAcconti;
+      const accontiString = (c.acconti || [])
+        .map(a => `${a.importo.toFixed(2)} € (${formatDate(a.data)})`)
+        .join('\n');
+      return [
+        formatDate(c.data),
+        c.nome,
+        c.descrizione,
+        c.importo.toFixed(2) + ' €',
+        accontiString,
+        saldo.toFixed(2) + ' €'
+      ];
+    });
+
     doc.autoTable({
-      startY: 36,
+      startY: 40, // Aumenta startY per fare spazio al testo del saldo
       head: [['Data', 'Nome', 'Descrizione', 'Importo', 'Acconti', 'Saldo']],
-      body: clientiFiltrati.map(c => {
-        const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
-        const saldo = c.importo - totaleAcconti;
-        const accontiString = (c.acconti || [])
-          .map(a => `${a.importo.toFixed(2)} € (${formatDate(a.data)})`)
-          .join('\n'); // <-- ogni acconto su una riga
-        return [
-          formatDate(c.data),
-          c.nome,
-          c.descrizione,
-          c.importo.toFixed(2) + ' €',
-          accontiString,
-          saldo.toFixed(2) + ' €'
-        ];
-      }),
+      body,
       theme: 'striped',
       headStyles: { fillColor: [25, 118, 210] },
-      styles: { cellPadding: 2, fontSize: 10 },
+      styles: { cellPadding: 2, fontSize: 10 }, // Stile normale per la tabella
       columnStyles: {
         4: { cellWidth: 40 }, // colonna acconti più larga se vuoi
       },
@@ -198,6 +253,7 @@ const ClientiTable: React.FC = () => {
         }
       }
     });
+
     doc.save('report-clienti.pdf');
   };
 

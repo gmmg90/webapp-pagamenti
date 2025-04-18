@@ -4,12 +4,15 @@ import {
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import Fab from '@mui/material/Fab';
 import { collection, getDocs, addDoc, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Autocomplete from '@mui/material/Autocomplete';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
 
 interface Acconto {
   importo: number;
@@ -27,6 +30,11 @@ interface Cliente {
 
 const oggi = () => new Date().toISOString().slice(0, 10);
 
+const formatDate = (date: string) => {
+  const options: Intl.DateTimeFormatOptions = { year: 'numeric', month: '2-digit', day: '2-digit' };
+  return new Date(date).toLocaleDateString('it-IT', options);
+};
+
 const ClientiTableMobile: React.FC = () => {
   const [clienti, setClienti] = useState<Cliente[]>([]);
   const [openAdd, setOpenAdd] = useState(false);
@@ -35,7 +43,7 @@ const ClientiTableMobile: React.FC = () => {
   const [importo, setImporto] = useState<string>(''); // invece di 0
   const [mostraSaldoZero, setMostraSaldoZero] = useState(false);
   const [searchCliente, setSearchCliente] = useState('');
-  const [ordinaDecrescente, setOrdinaDecrescente] = useState(true);
+  const [ordinaDecrescente, setOrdinaDecrescente] = useState(false); // Cambia da true a false
 
   // Acconto
   const [openAcconto, setOpenAcconto] = useState(false);
@@ -94,7 +102,7 @@ const ClientiTableMobile: React.FC = () => {
   };
 
   const clientiFiltrati = clienti
-    .filter(c => !c.deleted) // nasconde i clienti eliminati
+    .filter(c => !c.deleted)
     .filter(c => {
       const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
       const saldo = c.importo - totaleAcconti;
@@ -105,6 +113,96 @@ const ClientiTableMobile: React.FC = () => {
         ? new Date(b.data).getTime() - new Date(a.data).getTime()
         : new Date(a.data).getTime() - new Date(b.data).getTime()
     );
+
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+
+    // 1. Intestazione principale (centrata)
+    const companyName = 'Gelarredi Informatica srl';
+    doc.setFontSize(18);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const companyNameWidth = doc.getTextWidth(companyName);
+    const companyNameX = (pageWidth - companyNameWidth) / 2;
+    doc.text(companyName, companyNameX, 18);
+
+    // Titolo dinamico
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal'); // Assicura stile normale
+    let startX = 14; // Manteniamo startX per il titolo e il saldo che sono allineati a sinistra
+    if (clientiFiltrati.length > 0) {
+      const firstClientName = clientiFiltrati[0].nome;
+      const allSameClient = clientiFiltrati.every(c => c.nome === firstClientName);
+      if (allSameClient) {
+        // 2a. Scrivi etichetta titolo (normale)
+        const label = 'Report Cliente: ';
+        doc.text(label, startX, 28);
+        startX += doc.getTextWidth(label); // Calcola dove iniziare il nome
+
+        // 2b. Scrivi nome cliente (grassetto corsivo)
+        doc.setFont('helvetica', 'bolditalic');
+        doc.text(firstClientName, startX, 28);
+        doc.setFont('helvetica', 'normal'); // Reimposta normale
+        startX = 14; // Resetta startX per la riga del saldo
+      } else {
+        // Titolo generico (normale)
+        doc.text('Report Clienti', startX, 28);
+      }
+    } else {
+      // Titolo generico se non ci sono clienti filtrati (normale)
+      doc.text('Report Clienti', startX, 28);
+    }
+
+    // Calcolo totale saldo
+    const totaleSaldi = clientiFiltrati.reduce((sum, c) => {
+      const totaleAcconti = (c.acconti || []).reduce((a, b) => a + (b.importo || 0), 0);
+      return sum + (c.importo - totaleAcconti);
+    }, 0);
+
+    // Saldo Totale (allineato a sinistra)
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal'); // Assicura stile normale
+    startX = 14; // Usa startX per allineare a sinistra
+    // 3a. Scrivi etichetta saldo (normale)
+    const saldoLabel = 'Differnza a Saldo: ';
+    doc.text(saldoLabel, startX, 34);
+    startX += doc.getTextWidth(saldoLabel); // Calcola dove iniziare il valore
+
+    // 3b. Scrivi valore saldo (grassetto corsivo)
+    doc.setFont('helvetica', 'bolditalic');
+    doc.text(`${totaleSaldi.toFixed(2)} €`, startX, 34);
+    doc.setFont('helvetica', 'normal'); // Reimposta normale prima della tabella
+
+    // ... resto del codice per generare il body e autoTable ...
+    const body = clientiFiltrati.map(c => {
+      const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
+      const saldo = c.importo - totaleAcconti;
+      const accontiString = (c.acconti || [])
+        .map(a => `${a.importo.toFixed(2)} € (${formatDate(a.data)})`)
+        .join('\n');
+      return [
+        formatDate(c.data),
+        c.nome,
+        c.descrizione,
+        c.importo.toFixed(2) + ' €',
+        accontiString,
+        saldo.toFixed(2) + ' €'
+      ];
+    });
+
+    doc.autoTable({
+      startY: 40,
+      head: [['Data', 'Nome', 'Descrizione', 'Importo', 'Acconti', 'Saldo']],
+      body,
+      theme: 'striped',
+      headStyles: { fillColor: [25, 118, 210] },
+      styles: { cellPadding: 2, fontSize: 10 }, // Stile normale per la tabella
+      columnStyles: {
+        4: { cellWidth: 40 },
+      },
+    });
+
+    doc.save('report-clienti.pdf');
+  };
 
   return (
     <Box
@@ -119,35 +217,71 @@ const ClientiTableMobile: React.FC = () => {
         overflow: 'hidden', // evita doppio scroll
       }}
     >
-      <Box sx={{ p: 2, pb: 0 }}>
-        <Typography variant="h5" sx={{ mb: 1 }}>Clienti</Typography>
+      <Box sx={{ p: 2, pb: 1, borderBottom: '1px solid #eee' }}> {/* Aggiunto bordo separatore */}
+        <Typography variant="h5" sx={{ mb: 1, textAlign: 'center' }}>Clienti</Typography> {/* Centrato titolo */}
         <TextField
           label="Cerca cliente"
           fullWidth
-          margin="dense"
+          variant="outlined" // Stile più moderno
+          size="small" // Più compatto
           value={searchCliente}
           onChange={e => setSearchCliente(e.target.value)}
           sx={{ mb: 2 }}
         />
-        <FormControlLabel
-          control={
-            <Switch
-              checked={mostraSaldoZero}
-              onChange={e => setMostraSaldoZero(e.target.checked)}
-              color="primary"
+        {/* Riga Controlli */}
+        <Box
+          display="flex"
+          justifyContent="space-between" // Spazio tra gruppo switches e pulsante PDF
+          alignItems="flex-start" // Allinea in alto per coerenza se vanno a capo
+          flexWrap="wrap"
+          gap={1}
+          sx={{ mb: 2 }}
+        >
+          {/* Gruppo Switches a sinistra */}
+          <Box display="flex" flexDirection="column" alignItems="flex-start">
+            {/* Switch Saldo Zero */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={mostraSaldoZero}
+                  onChange={e => setMostraSaldoZero(e.target.checked)}
+                  color="primary"
+                  size="small"
+                />
+              }
+              label={<Typography variant="caption">Mostra saldo zero</Typography>}
+              sx={{ m: 0, p: 0, height: '24px' }} // Riduci margini/padding e altezza fissa
             />
-          }
-          label="Mostra clienti con saldo zero"
-        />
-        <Box display="flex" alignItems="center" sx={{ mt: 1, mb: 1 }}>
-          <Typography variant="body2" sx={{ mr: 1 }}>
-            {ordinaDecrescente ? "Più recenti prima" : "Meno recenti prima"}
-          </Typography>
-          <Switch
-            checked={ordinaDecrescente}
-            onChange={() => setOrdinaDecrescente(v => !v)}
-            color="primary"
-          />
+            {/* Switch Ordinamento (come FormControlLabel) */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={ordinaDecrescente}
+                  onChange={() => setOrdinaDecrescente(v => !v)}
+                  color="primary"
+                  size="small"
+                />
+              }
+              label={
+                <Typography variant="caption">
+                  {ordinaDecrescente ? "Recenti prima" : "Meno recenti prima"}
+                </Typography>
+              }
+              labelPlacement="end" // Assicura che l'etichetta sia a destra
+              sx={{ m: 0, p: 0, mt: 0.5 }} // Riduci margini/padding, aggiungi piccolo spazio sopra
+            />
+          </Box>
+
+          {/* Pulsante Esporta a destra */}
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<PictureAsPdfIcon />}
+            onClick={handleExportPDF}
+            sx={{ mt: 1 }} // Aggiungi un po' di margine sopra se va a capo
+          >
+            PDF
+          </Button>
         </Box>
       </Box>
       <Box

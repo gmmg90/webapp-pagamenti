@@ -31,13 +31,13 @@ const ClientiTableMobile: React.FC = () => {
   const [openAdd, setOpenAdd] = useState(false);
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
-  const [importo, setImporto] = useState<number | string>(0);
+  const [importo, setImporto] = useState<string>(''); // invece di 0
   const [mostraSaldoZero, setMostraSaldoZero] = useState(false);
   const [searchCliente, setSearchCliente] = useState('');
 
   // Acconto
   const [openAcconto, setOpenAcconto] = useState(false);
-  const [accontoImporto, setAccontoImporto] = useState<number | string>(0);
+  const [accontoImporto, setAccontoImporto] = useState<string>(''); // invece di 0
   const [accontoData, setAccontoData] = useState(oggi());
   const [clienteAcconto, setClienteAcconto] = useState<Cliente | null>(null);
 
@@ -63,14 +63,14 @@ const ClientiTableMobile: React.FC = () => {
       data: oggi(),
       nome,
       descrizione,
-      importo: parseFloat(importo?.toString() || '0'),
+      importo: parseFloat(importo || '0'),
       acconti: [],
     };
     const docRef = await addDoc(collection(db, 'clienti'), nuovoCliente);
     setClienti([...clienti, { ...nuovoCliente, id: docRef.id }]);
     setNome('');
     setDescrizione('');
-    setImporto(0);
+    setImporto('');
     setOpenAdd(false);
   };
 
@@ -84,7 +84,8 @@ const ClientiTableMobile: React.FC = () => {
     setClienti(clienti.map(c =>
       c.id === clienteAcconto.id ? { ...c, acconti: updatedAcconti } : c
     ));
-    setAccontoImporto(0);
+    setImporto('');
+    setAccontoImporto('');
     setAccontoData(oggi());
     setClienteAcconto(null);
     setOpenAcconto(false);
@@ -237,9 +238,7 @@ const ClientiTableMobile: React.FC = () => {
             margin="dense"
             value={importo}
             onChange={e => {
-              // Permetti sia virgola che punto, ma salva sempre col punto
               const val = e.target.value.replace(',', '.');
-              // Permetti solo numeri validi o vuoto
               if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
                 setImporto(val);
               }

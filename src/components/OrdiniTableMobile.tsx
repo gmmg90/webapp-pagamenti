@@ -57,15 +57,17 @@ const OrdiniTableMobile: React.FC = () => {
 
   // Raggruppa per cliente, tieni solo l'ultimo ordine per ogni cliente
   const ordiniUnici = Object.values(
-    ordini.reduce((acc, ordine) => {
-      if (
-        !acc[ordine.cliente] ||
-        new Date(ordine.data) > new Date(acc[ordine.cliente].data)
-      ) {
-        acc[ordine.cliente] = ordine;
-      }
-      return acc;
-    }, {} as { [cliente: string]: Ordine })
+    ordini
+      .filter(o => !o.deleted) // nasconde gli ordini eliminati
+      .reduce((acc, ordine) => {
+        if (
+          !acc[ordine.cliente] ||
+          new Date(ordine.data) > new Date(acc[ordine.cliente].data)
+        ) {
+          acc[ordine.cliente] = ordine;
+        }
+        return acc;
+      }, {} as { [cliente: string]: Ordine })
   ).sort((a, b) =>
     ordinaDecrescente
       ? new Date(b.data).getTime() - new Date(a.data).getTime()

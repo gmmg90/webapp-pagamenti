@@ -63,6 +63,7 @@ const ClientiTable: React.FC = () => {
 
   const nomiClienti = Array.from(new Set(clienti.map(c => c.nome)));
   const clientiFiltrati = clienti
+    .filter(c => !c.deleted) // nasconde i deleted
     .filter(c => {
       const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
       const saldo = c.importo - totaleAcconti;

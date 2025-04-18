@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow, Paper, Button, TextField, Autocomplete
 } from '@mui/material';
-import { collection, addDoc, getDocs } from 'firebase/firestore';
+import { collection, addDoc, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import DeleteIcon from '@mui/icons-material/Delete';
 import PersonAddIcon from '@mui/icons-material/PersonAdd';
@@ -68,9 +68,11 @@ const OrdiniTable: React.FC = () => {
   // Prendi i nomi clienti dalla collezione clienti
   const nomiClienti = Array.from(new Set(clienti.map(c => c.nome)));
 
-  const ordiniFiltrati = ordini.filter(o =>
-    o.cliente.toLowerCase().includes(searchCliente.toLowerCase())
-  );
+  const ordiniFiltrati = ordini
+    .filter(o => !o.deleted) // nasconde gli ordini eliminati
+    .filter(o =>
+      o.cliente.toLowerCase().includes(searchCliente.toLowerCase())
+    );
 
   // Raggruppa per cliente, tieni solo l'ultimo ordine per ogni cliente
   const ordiniUnici = Object.values(
@@ -103,8 +105,7 @@ const OrdiniTable: React.FC = () => {
 
   const confirmDeleteOrdine = async () => {
     if (ordineToDelete) {
-      // Se vuoi eliminare davvero il documento:
-      // await deleteDoc(doc(db, 'ordini', ordineToDelete.id!));
+      await updateDoc(doc(db, 'ordini', ordineToDelete.id!), { deleted: true });
       setOrdini(ordini.filter(o => o.id !== ordineToDelete.id));
       setOrdineToDelete(null);
       setOpenDeleteDialog(false);

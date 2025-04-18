@@ -22,6 +22,7 @@ interface Cliente {
   descrizione: string;
   importo: number;
   acconti: Acconto[];
+  deleted?: boolean;
 }
 
 const oggi = () => new Date().toISOString().slice(0, 10);
@@ -93,6 +94,7 @@ const ClientiTableMobile: React.FC = () => {
   };
 
   const clientiFiltrati = clienti
+    .filter(c => !c.deleted) // nasconde i clienti eliminati
     .filter(c => {
       const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
       const saldo = c.importo - totaleAcconti;

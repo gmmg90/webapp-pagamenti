@@ -17,6 +17,7 @@ interface Ordine {
   data: string;
   cliente: string;
   descrizione: string;
+  deleted?: boolean;
 }
 
 interface Cliente {

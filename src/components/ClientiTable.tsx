@@ -14,6 +14,9 @@ import DialogContentText from '@mui/material/DialogContentText';
 import Switch from '@mui/material/Switch';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import { Box, Typography } from '@mui/material';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import ToolbarFiltri from './ToolbarFiltri';
 
 interface Acconto {
   importo: number;
@@ -26,6 +29,7 @@ interface Cliente {
   descrizione: string;
   importo: number;
   acconti: Acconto[];
+  deleted?: boolean;
 }
 
 const oggi = () => new Date().toISOString().slice(0, 10);
@@ -35,15 +39,14 @@ const ClientiTable: React.FC = () => {
   const [data, setData] = useState(oggi());
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
-  const [importo, setImporto] = useState<number | string>(0);
+  const [importo, setImporto] = useState<string>(''); // stringa per evitare zeri davanti
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [searchCliente, setSearchCliente] = useState('');
-  const [newAcconto, setNewAcconto] = useState<{ [key: string]: Acconto }>({});
+  const [newAcconto, setNewAcconto] = useState<{ [key: string]: { importo: string; data: string } }>({});
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [clienteToDelete, setClienteToDelete] = useState<Cliente | null>(null);
   const [mostraSaldoZero, setMostraSaldoZero] = useState(false);
   const [ordinaDecrescente, setOrdinaDecrescente] = useState(true);
-  const [] = useState(false);
 
   useEffect(() => {
     const fetchClienti = async () => {
@@ -63,7 +66,7 @@ const ClientiTable: React.FC = () => {
 
   const nomiClienti = Array.from(new Set(clienti.map(c => c.nome)));
   const clientiFiltrati = clienti
-    .filter(c => !c.deleted) // nasconde i deleted
+    .filter(c => !c.deleted)
     .filter(c => {
       const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
       const saldo = c.importo - totaleAcconti;
@@ -84,7 +87,7 @@ const ClientiTable: React.FC = () => {
   }, 0);
 
   const handleAdd = async () => {
-    const importoNum = parseFloat(importo?.toString() || '0');
+    const importoNum = parseFloat(importo.replace(',', '.') || '0');
     if (!nome || !descrizione || importoNum <= 0) return;
     const nuovoCliente: Cliente = { data, nome, descrizione, importo: importoNum, acconti: [] };
     const docRef = await addDoc(collection(db, 'clienti'), nuovoCliente);
@@ -92,7 +95,7 @@ const ClientiTable: React.FC = () => {
     setData(oggi());
     setNome('');
     setDescrizione('');
-    setImporto(0);
+    setImporto('');
   };
 
   const handleEdit = (index: number) => {
@@ -101,12 +104,12 @@ const ClientiTable: React.FC = () => {
     setData(cliente.data || oggi());
     setNome(cliente.nome);
     setDescrizione(cliente.descrizione);
-    setImporto(cliente.importo);
+    setImporto(cliente.importo.toString());
   };
 
   const handleUpdate = async () => {
     if (editIndex === null) return;
-    const importoNum = parseFloat(importo?.toString() || '0');
+    const importoNum = parseFloat(importo.replace(',', '.') || '0');
     const cliente = clientiFiltrati[editIndex];
     const updatedCliente = { ...cliente, data, nome, descrizione, importo: importoNum };
     await updateDoc(doc(db, 'clienti', cliente.id!), updatedCliente);
@@ -115,18 +118,20 @@ const ClientiTable: React.FC = () => {
     setData(oggi());
     setNome('');
     setDescrizione('');
-    setImporto(0);
+    setImporto('');
   };
 
   const handleAddAcconto = async (cliente: Cliente) => {
-    const acconto = newAcconto[cliente.id!] || { importo: 0, data: oggi() };
+    const acconto = newAcconto[cliente.id!] || { importo: '', data: oggi() };
     if (!acconto.importo || !acconto.data) return;
-    const updatedAcconti = [...(cliente.acconti || []), acconto];
+    const importoNum = parseFloat(acconto.importo.replace(',', '.') || '0');
+    if (importoNum <= 0) return;
+    const updatedAcconti = [...(cliente.acconti || []), { importo: importoNum, data: acconto.data }];
     await updateDoc(doc(db, 'clienti', cliente.id!), { acconti: updatedAcconti });
     setClienti(clienti.map(c =>
       c.id === cliente.id ? { ...c, acconti: updatedAcconti } : c
     ));
-    setNewAcconto({ ...newAcconto, [cliente.id!]: { importo: 0, data: oggi() } });
+    setNewAcconto({ ...newAcconto, [cliente.id!]: { importo: '', data: oggi() } });
   };
 
   const handleDeleteAcconto = async (cliente: Cliente, idx: number) => {
@@ -152,28 +157,46 @@ const ClientiTable: React.FC = () => {
     }
   };
 
+  const handleExportPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('Nome Azienda Srl', 14, 18);
+    doc.setFontSize(12);
+    doc.text('Report Clienti', 14, 28);
+    doc.autoTable({
+      startY: 36,
+      head: [['Data', 'Nome', 'Descrizione', 'Importo', 'Saldo']],
+      body: clientiFiltrati.map(c => {
+        const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
+        const saldo = c.importo - totaleAcconti;
+        return [
+          c.data,
+          c.nome,
+          c.descrizione,
+          c.importo.toFixed(2) + ' €',
+          saldo.toFixed(2) + ' €'
+        ];
+      }),
+      theme: 'striped',
+      headStyles: { fillColor: [25, 118, 210] },
+    });
+    doc.save('report-clienti.pdf');
+  };
+
   return (
     <>
-      <FormControlLabel
-        control={
-          <Switch
-            checked={mostraSaldoZero}
-            onChange={e => setMostraSaldoZero(e.target.checked)}
-            color="primary"
-          />
-        }
-        label="Mostra clienti con saldo zero"
+      <ToolbarFiltri
+        searchValue={searchCliente}
+        onSearchChange={setSearchCliente}
+        mostraSaldoZero={mostraSaldoZero}
+        onToggleSaldoZero={setMostraSaldoZero}
+        ordinaDecrescente={ordinaDecrescente}
+        onToggleOrdina={() => setOrdinaDecrescente(v => !v)}
+        onExportPDF={handleExportPDF}
+        exportLabel="Esporta PDF"
+        saldoZeroLabel="Saldo zero"
+        ordinaLabel={["Più recenti prima", "Meno recenti prima"]}
       />
-      <Box display="flex" alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="body2" sx={{ mr: 1 }}>
-          {ordinaDecrescente ? "Più recenti prima" : "Meno recenti prima"}
-        </Typography>
-        <Switch
-          checked={ordinaDecrescente}
-          onChange={() => setOrdinaDecrescente(v => !v)}
-          color="primary"
-        />
-      </Box>
       <TableContainer
         component={Paper}
         sx={{
@@ -197,7 +220,7 @@ const ClientiTable: React.FC = () => {
                 left: 0,
                 right: 0,
                 width: 'auto',
-                background: '#e0e0e0', // grigio chiaro
+                background: '#e0e0e0',
                 zIndex: 3,
               }}
             >
@@ -215,7 +238,7 @@ const ClientiTable: React.FC = () => {
             <TableRow
               sx={{
                 position: 'sticky',
-                top: 56, // deve essere uguale all'altezza della riga header
+                top: 56,
                 left: 0,
                 right: 0,
                 width: 'auto',
@@ -258,9 +281,7 @@ const ClientiTable: React.FC = () => {
                   margin="dense"
                   value={importo}
                   onChange={e => {
-                    // Sostituisci la virgola con il punto
                     const val = e.target.value.replace(',', '.');
-                    // Permetti solo numeri validi o stringa vuota
                     if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
                       setImporto(val);
                     }
@@ -310,22 +331,25 @@ const ClientiTable: React.FC = () => {
                       {/* Form aggiunta acconto */}
                       <div style={{ marginTop: 8 }}>
                         <TextField
-                          type="number"
+                          type="text"
                           label="Nuovo acconto"
                           size="small"
                           value={newAcconto[c.id!]?.importo || ''}
-                          onChange={e =>
-                            setNewAcconto({
-                              ...newAcconto,
-                              [c.id!]: {
-                                ...newAcconto[c.id!],
-                                importo: Number(e.target.value),
-                                data: newAcconto[c.id!]?.data || oggi(),
-                              },
-                            })
-                          }
+                          onChange={e => {
+                            const val = e.target.value.replace(',', '.');
+                            if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
+                              setNewAcconto({
+                                ...newAcconto,
+                                [c.id!]: {
+                                  ...newAcconto[c.id!],
+                                  importo: val,
+                                  data: newAcconto[c.id!]?.data || oggi(),
+                                },
+                              });
+                            }
+                          }}
                           sx={{ width: 120, mr: 1 }}
-                          inputProps={{ min: 0, step: 0.01 }}
+                          inputProps={{ inputMode: 'decimal', pattern: '[0-9]*[.,]?[0-9]*' }}
                         />
                         <TextField
                           type="date"
@@ -337,7 +361,7 @@ const ClientiTable: React.FC = () => {
                               [c.id!]: {
                                 ...newAcconto[c.id!],
                                 data: e.target.value,
-                                importo: newAcconto[c.id!]?.importo || 0,
+                                importo: newAcconto[c.id!]?.importo || '',
                               },
                             })
                           }

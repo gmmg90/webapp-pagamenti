@@ -14,6 +14,7 @@ interface Ordine {
   data: string;
   cliente: string;
   descrizione: string;
+  deleted?: boolean;
 }
 
 const oggi = () => new Date().toISOString().slice(0, 10);

@@ -17,6 +17,7 @@ import DesktopWindowsIcon from '@mui/icons-material/DesktopWindows';
 import ClientiTableMobile from './components/ClientiTableMobile';
 import OrdiniTableMobile from './components/OrdiniTableMobile';
 
+
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);

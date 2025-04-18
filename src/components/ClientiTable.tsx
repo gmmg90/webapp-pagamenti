@@ -34,7 +34,7 @@ const ClientiTable: React.FC = () => {
   const [data, setData] = useState(oggi());
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
-  const [importo, setImporto] = useState<number>(0);
+  const [importo, setImporto] = useState<number | string>(0);
   const [editIndex, setEditIndex] = useState<number | null>(null);
   const [searchCliente, setSearchCliente] = useState('');
   const [newAcconto, setNewAcconto] = useState<{ [key: string]: Acconto }>({});
@@ -75,8 +75,9 @@ const ClientiTable: React.FC = () => {
   }, 0);
 
   const handleAdd = async () => {
-    if (!nome || !descrizione || importo <= 0) return;
-    const nuovoCliente: Cliente = { data, nome, descrizione, importo, acconti: [] };
+    const importoNum = parseFloat(importo || '0');
+    if (!nome || !descrizione || importoNum <= 0) return;
+    const nuovoCliente: Cliente = { data, nome, descrizione, importo: importoNum, acconti: [] };
     const docRef = await addDoc(collection(db, 'clienti'), nuovoCliente);
     setClienti([...clienti, { ...nuovoCliente, id: docRef.id }]);
     setData(oggi());
@@ -96,8 +97,9 @@ const ClientiTable: React.FC = () => {
 
   const handleUpdate = async () => {
     if (editIndex === null) return;
+    const importoNum = parseFloat(importo || '0');
     const cliente = clientiFiltrati[editIndex];
-    const updatedCliente = { ...cliente, data, nome, descrizione, importo };
+    const updatedCliente = { ...cliente, data, nome, descrizione, importo: importoNum };
     await updateDoc(doc(db, 'clienti', cliente.id!), updatedCliente);
     setClienti(clienti.map(c => c.id === cliente.id ? updatedCliente : c));
     setEditIndex(null);
@@ -231,13 +233,20 @@ const ClientiTable: React.FC = () => {
               </TableCell>
               <TableCell sx={{ fontSize: 16, py: 2, background: '#fff' }}>
                 <TextField
-                  type="number"
-                  value={importo}
-                  onChange={e => setImporto(Number(e.target.value))}
                   label="Importo"
-                  size="medium"
-                  sx={{ minWidth: 120 }}
-                  inputProps={{ min: 0, step: 0.01, style: { fontSize: 18 } }}
+                  type="text"
+                  fullWidth
+                  margin="dense"
+                  value={importo}
+                  onChange={e => {
+                    // Sostituisci la virgola con il punto
+                    const val = e.target.value.replace(',', '.');
+                    // Permetti solo numeri validi o stringa vuota
+                    if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
+                      setImporto(val);
+                    }
+                  }}
+                  inputProps={{ inputMode: 'decimal', pattern: '[0-9]*[.,]?[0-9]*' }}
                 />
               </TableCell>
               <TableCell />

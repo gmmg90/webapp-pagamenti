@@ -31,13 +31,13 @@ const ClientiTableMobile: React.FC = () => {
   const [openAdd, setOpenAdd] = useState(false);
   const [nome, setNome] = useState('');
   const [descrizione, setDescrizione] = useState('');
-  const [importo, setImporto] = useState<number>(0);
+  const [importo, setImporto] = useState<number | string>(0);
   const [mostraSaldoZero, setMostraSaldoZero] = useState(false);
   const [searchCliente, setSearchCliente] = useState('');
 
   // Acconto
   const [openAcconto, setOpenAcconto] = useState(false);
-  const [accontoImporto, setAccontoImporto] = useState<number>(0);
+  const [accontoImporto, setAccontoImporto] = useState<number | string>(0);
   const [accontoData, setAccontoData] = useState(oggi());
   const [clienteAcconto, setClienteAcconto] = useState<Cliente | null>(null);
 
@@ -58,12 +58,12 @@ const ClientiTableMobile: React.FC = () => {
   }, []);
 
   const handleAddCliente = async () => {
-    if (!nome || !descrizione || importo <= 0) return;
+    if (!nome || !descrizione || Number(importo) <= 0) return;
     const nuovoCliente: Cliente = {
       data: oggi(),
       nome,
       descrizione,
-      importo,
+      importo: parseFloat(importo?.toString() || '0'),
       acconti: [],
     };
     const docRef = await addDoc(collection(db, 'clienti'), nuovoCliente);
@@ -75,10 +75,10 @@ const ClientiTableMobile: React.FC = () => {
   };
 
   const handleAddAcconto = async () => {
-    if (!clienteAcconto || accontoImporto <= 0) return;
+    if (!clienteAcconto || Number(accontoImporto) <= 0) return;
     const updatedAcconti = [
       ...(clienteAcconto.acconti || []),
-      { importo: accontoImporto, data: accontoData },
+      { importo: parseFloat(accontoImporto || '0'), data: accontoData },
     ];
     await updateDoc(doc(db, 'clienti', clienteAcconto.id!), { acconti: updatedAcconti });
     setClienti(clienti.map(c =>
@@ -232,12 +232,19 @@ const ClientiTableMobile: React.FC = () => {
           />
           <TextField
             label="Importo"
-            type="number"
+            type="text"
             fullWidth
             margin="dense"
             value={importo}
-            onChange={e => setImporto(Number(e.target.value))}
-            inputProps={{ min: 0, step: 0.01 }}
+            onChange={e => {
+              // Permetti sia virgola che punto, ma salva sempre col punto
+              const val = e.target.value.replace(',', '.');
+              // Permetti solo numeri validi o vuoto
+              if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
+                setImporto(val);
+              }
+            }}
+            inputProps={{ inputMode: 'decimal', pattern: '[0-9]*[.,]?[0-9]*' }}
           />
         </DialogContent>
         <DialogActions>
@@ -255,12 +262,17 @@ const ClientiTableMobile: React.FC = () => {
           </Typography>
           <TextField
             label="Importo"
-            type="number"
+            type="text"
             fullWidth
             margin="dense"
             value={accontoImporto}
-            onChange={e => setAccontoImporto(Number(e.target.value))}
-            inputProps={{ min: 0, step: 0.01 }}
+            onChange={e => {
+              const val = e.target.value.replace(',', '.');
+              if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
+                setAccontoImporto(val);
+              }
+            }}
+            inputProps={{ inputMode: 'decimal', pattern: '[0-9]*[.,]?[0-9]*' }}
           />
           <TextField
             label="Data"

@@ -11,12 +11,10 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import DialogContentText from '@mui/material/DialogContentText';
-import Switch from '@mui/material/Switch';
-import FormControlLabel from '@mui/material/FormControlLabel';
-import { Box, Typography } from '@mui/material';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import ToolbarFiltri from './ToolbarFiltri';
+import type { CellHookData } from 'jspdf-autotable';
 
 interface Acconto {
   importo: number;
@@ -33,6 +31,12 @@ interface Cliente {
 }
 
 const oggi = () => new Date().toISOString().slice(0, 10);
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return '';
+  const [yyyy, mm, dd] = dateStr.split('-');
+  return `${dd}-${mm}-${yyyy}`;
+}
 
 const ClientiTable: React.FC = () => {
   const [clienti, setClienti] = useState<Cliente[]>([]);
@@ -160,25 +164,39 @@ const ClientiTable: React.FC = () => {
   const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
-    doc.text('Nome Azienda Srl', 14, 18);
+    doc.text('Gelarredi Informatica srl', 14, 18);
     doc.setFontSize(12);
-    doc.text('Report Clienti', 14, 28);
+    doc.text('Report Cliente', 14, 28);
     doc.autoTable({
       startY: 36,
-      head: [['Data', 'Nome', 'Descrizione', 'Importo', 'Saldo']],
+      head: [['Data', 'Nome', 'Descrizione', 'Importo', 'Acconti', 'Saldo']],
       body: clientiFiltrati.map(c => {
         const totaleAcconti = (c.acconti || []).reduce((sum, a) => sum + (a.importo || 0), 0);
         const saldo = c.importo - totaleAcconti;
+        const accontiString = (c.acconti || [])
+          .map(a => `${a.importo.toFixed(2)} € (${formatDate(a.data)})`)
+          .join('\n'); // <-- ogni acconto su una riga
         return [
-          c.data,
+          formatDate(c.data),
           c.nome,
           c.descrizione,
           c.importo.toFixed(2) + ' €',
+          accontiString,
           saldo.toFixed(2) + ' €'
         ];
       }),
       theme: 'striped',
       headStyles: { fillColor: [25, 118, 210] },
+      styles: { cellPadding: 2, fontSize: 10 },
+      columnStyles: {
+        4: { cellWidth: 40 }, // colonna acconti più larga se vuoi
+      },
+      didParseCell: function (data: CellHookData) {
+        // Per andare a capo negli acconti
+        if (data.column.index === 4 && typeof data.cell.raw === 'string') {
+          data.cell.styles.cellPadding = { top: 2, right: 2, bottom: 2, left: 2 };
+        }
+      }
     });
     doc.save('report-clienti.pdf');
   };
@@ -309,7 +327,7 @@ const ClientiTable: React.FC = () => {
               return (
                 <React.Fragment key={c.id || i}>
                   <TableRow>
-                    <TableCell sx={{ fontSize: 16, py: 2 }}>{c.data || oggi()}</TableCell>
+                    <TableCell sx={{ fontSize: 16, py: 2 }}>{formatDate(c.data || oggi())}</TableCell>
                     <TableCell sx={{ fontSize: 16, py: 2 }}>{c.nome}</TableCell>
                     <TableCell sx={{ fontSize: 16, py: 2 }}>{c.descrizione}</TableCell>
                     <TableCell sx={{ fontSize: 16, py: 2 }}>{c.importo.toFixed(2)} €</TableCell>
@@ -317,7 +335,7 @@ const ClientiTable: React.FC = () => {
                       {/* Lista acconti */}
                       {(c.acconti || []).map((a, idx) => (
                         <div key={idx} style={{ display: 'flex', alignItems: 'center' }}>
-                          {a.importo.toFixed(2)} € - {a.data}
+                          {a.importo.toFixed(2)} € - {formatDate(a.data)}
                           <Button
                             size="small"
                             color="error"

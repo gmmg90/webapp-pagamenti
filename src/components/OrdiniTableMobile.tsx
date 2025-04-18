@@ -26,7 +26,7 @@ const OrdiniTableMobile: React.FC = () => {
   const [openAdd, setOpenAdd] = useState(false);
   const [openDialog, setOpenDialog] = useState(false);
   const [ordineToMove, setOrdineToMove] = useState<Ordine | null>(null);
-  const [importoCliente, setImportoCliente] = useState<number>(0);
+  const [importoCliente, setImportoCliente] = useState<string>('');
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const [ordineToDelete, setOrdineToDelete] = useState<Ordine | null>(null);
   const [clienti, setClienti] = useState<{ nome: string }[]>([]);
@@ -93,21 +93,22 @@ const OrdiniTableMobile: React.FC = () => {
 
   const handleMoveToClienti = (ordine: Ordine) => {
     setOrdineToMove(ordine);
-    setImportoCliente(0);
+    setImportoCliente('');
     setOpenDialog(true);
   };
 
   const confirmMoveToClienti = async () => {
-    if (ordineToMove && importoCliente > 0) {
+    if (ordineToMove && parseFloat(importoCliente) > 0) {
       await addDoc(collection(db, 'clienti'), {
         data: ordineToMove.data,
         nome: ordineToMove.cliente,
         descrizione: ordineToMove.descrizione,
-        importo: importoCliente,
+        importo: parseFloat(importoCliente || '0'),
         acconti: [],
       });
       setOrdini(ordini.filter(o => o.id !== ordineToMove.id));
       setOrdineToMove(null);
+      setImportoCliente('');
       setOpenDialog(false);
     }
   };
@@ -255,11 +256,16 @@ const OrdiniTableMobile: React.FC = () => {
             autoFocus
             margin="dense"
             label="Importo"
-            type="number"
+            type="text"
             fullWidth
             value={importoCliente}
-            onChange={e => setImportoCliente(Number(e.target.value))}
-            inputProps={{ min: 0, step: 0.01 }}
+            onChange={e => {
+              const val = e.target.value.replace(',', '.');
+              if (/^\d*\.?\d{0,2}$/.test(val) || val === '') {
+                setImportoCliente(val);
+              }
+            }}
+            inputProps={{ inputMode: 'decimal', pattern: '[0-9]*[.,]?[0-9]*' }}
           />
         </DialogContent>
         <DialogActions>

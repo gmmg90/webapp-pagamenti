@@ -131,11 +131,11 @@ const App: React.FC = () => {
             <BottomNavigationAction label="Clienti" icon={<PeopleIcon />} />
             <BottomNavigationAction label="Ordini" icon={<ReceiptIcon />} />
             <BottomNavigationAction label="Scadenze" icon={<CalendarTodayIcon />} />
-            {/* Menu Altro */}
             <BottomNavigationAction
               label="Altro"
               icon={<MoreVertIcon />}
               onClick={handleMenuOpen}
+              value={-1} // <--- aggiungi questo
             />
           </BottomNavigation>
           <Menu
